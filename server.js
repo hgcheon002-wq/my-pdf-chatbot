@@ -15,8 +15,11 @@ const pdf     = require('pdf-parse'); // PDF 텍스트 추출 라이브러리
 const OpenAI  = require('openai');  // OpenAI 공식 SDK
 
 // ⚠️ 보안: API 키는 반드시 서버에서만 사용. 절대 클라이언트에 노출 금지.
+// SambaNova는 OpenAI 호환 API를 제공하므로 OpenAI SDK를 그대로 사용하고
+// baseURL만 SambaNova 엔드포인트로 변경한다.
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: process.env.SAMBANOVA_API_KEY,
+  baseURL: 'https://api.sambanova.ai/v1',
 });
 
 // Express 앱 인스턴스 생성
@@ -124,12 +127,13 @@ ${pdfText.slice(0, 100000)}
         },
       ];
 
-      // OpenAI gpt-4o-mini 모델로 답변 생성 요청
+      // SambaNova API로 답변 생성 요청
+      // 모델명은 환경변수 HF_MODEL로 지정, 없으면 기본값 사용
       const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini', // CLAUDE.md에서 지정된 모델
+        model: process.env.HF_MODEL || 'Meta-Llama-3.3-70B-Instruct',
         messages: messages,
-        max_tokens: 1000,     // 응답 최대 토큰 수 제한 (비용 절감)
-        temperature: 0.3,     // 낮은 temperature: 보다 일관된 법률 답변 유도
+        max_tokens: 1000, // 응답 최대 토큰 수 제한 (비용 절감)
+        temperature: 0.3, // 낮은 temperature: 보다 일관된 법률 답변 유도
       });
 
       // AI가 생성한 답변 텍스트 추출
@@ -139,7 +143,7 @@ ${pdfText.slice(0, 100000)}
       res.json({ reply });
     } catch (err) {
       // OpenAI API 호출 실패 시 500 에러 반환
-      console.error('❌ OpenAI API 오류:', err.message);
+      console.error('❌ SambaNova API 오류:', err.message);
       res.status(500).json({ error: '일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.' });
     }
   });
