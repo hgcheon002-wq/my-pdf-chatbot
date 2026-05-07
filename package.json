@@ -1,0 +1,16 @@
+{
+  "name": "my-pdf-chatbot",
+  "version": "1.0.0",
+  "description": "노무 업무 어시스턴트 챗봇 — PDF 기반 질문 답변 서비스",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.0.0",
+    "express": "^4.18.0",
+    "openai": "^4.0.0",
+    "pdf-parse": "^1.1.1"
+  }
+}

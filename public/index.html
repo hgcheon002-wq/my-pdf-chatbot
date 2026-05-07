@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <!-- 모바일 화면에서도 올바르게 표시되도록 뷰포트 설정 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>노무 업무 어시스턴트</title>
+
+  <!-- ② 전체 CSS 스타일 — 디자인 토큰 → 컴포넌트 순 -->
+  <!-- Design Ref: §5.2 디자인 토큰 (라이트모드) -->
+  <style>
+    /* ===== CSS 변수 (디자인 토큰) ===== */
+    :root {
+      /* 색상 */
+      --color-bg-page:          #f0f2f5;
+      --color-bg-chat:          #ffffff;
+      --color-header-bg:        #ffffff;
+      --color-header-border:    #e5e7eb;
+
+      --color-primary:          #2563eb;
+      --color-primary-hover:    #1d4ed8;
+
+      --color-bubble-user-bg:   #2563eb;
+      --color-bubble-user-text: #ffffff;
+      --color-bubble-ai-bg:     #f3f4f6;
+      --color-bubble-ai-text:   #1f2937;
+      --color-bubble-error-bg:  #fee2e2;
+      --color-bubble-error-text:#991b1b;
+
+      --color-input-bg:         #ffffff;
+      --color-input-border:     #d1d5db;
+      --color-input-focus:      #2563eb;
+
+      --color-text-primary:     #1f2937;
+      --color-text-secondary:   #6b7280;
+      --color-text-header:      #111827;
+
+      /* 폰트 */
+      --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Pretendard', sans-serif;
+      --font-size-base:  15px;
+      --font-size-small: 13px;
+      --font-size-title: 18px;
+
+      /* 간격 */
+      --spacing-xs: 4px;
+      --spacing-sm: 8px;
+      --spacing-md: 16px;
+      --spacing-lg: 24px;
+
+      /* 모서리 */
+      --radius-bubble: 18px;
+      --radius-input:  12px;
+
+      /* 그림자 */
+      --shadow-header: 0 1px 4px rgba(0, 0, 0, 0.08);
+      --shadow-chat:   0 2px 12px rgba(0, 0, 0, 0.06);
+    }
+
+    /* ===== 기본 리셋 ===== */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-family);
+      font-size: var(--font-size-base);
+      color: var(--color-text-primary);
+      background-color: var(--color-bg-page);
+      /* 전체 화면을 세로 flexbox로 구성 */
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden; /* 바디 자체는 스크롤 안 됨 */
+    }
+
+    /* ===== 헤더 ===== */
+    /* Design Ref: §5.3 — 높이 64px, 흰색, 하단 그림자 */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+      padding: 0 var(--spacing-lg);
+      background-color: var(--color-header-bg);
+      border-bottom: 1px solid var(--color-header-border);
+      box-shadow: var(--shadow-header);
+      flex-shrink: 0; /* 헤더 높이는 고정 (줄어들지 않음) */
+    }
+
+    .header-title {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      font-size: var(--font-size-title);
+      font-weight: 600;
+      color: var(--color-text-header);
+    }
+
+    .header-title .icon {
+      font-size: 24px;
+    }
+
+    .header-badge {
+      font-size: var(--font-size-small);
+      color: var(--color-text-secondary);
+      background-color: var(--color-bg-page);
+      padding: 3px 10px;
+      border-radius: 20px;
+    }
+
+    /* ===== 채팅 영역 ===== */
+    /* Design Ref: §5.3 — flex-grow:1, 스크롤 가능 */
+    .chat-container {
+      flex: 1;              /* 헤더·입력창 제외 나머지 공간 모두 차지 */
+      overflow-y: auto;     /* 메시지가 많아지면 세로 스크롤 */
+      padding: var(--spacing-lg);
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-md);
+    }
+
+    /* 스크롤바 스타일 (웹킷 계열) */
+    .chat-container::-webkit-scrollbar {
+      width: 6px;
+    }
+    .chat-container::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .chat-container::-webkit-scrollbar-thumb {
+      background: #d1d5db;
+      border-radius: 3px;
+    }
+
+    /* ===== 메시지 행 (말풍선 묶음) ===== */
+    .message-row {
+      display: flex;
+      gap: var(--spacing-sm);
+      max-width: 100%;
+    }
+
+    /* AI 메시지: 왼쪽 정렬 */
+    .message-row.ai {
+      align-items: flex-start;
+    }
+
+    /* 사용자 메시지: 오른쪽 정렬 */
+    .message-row.user {
+      flex-direction: row-reverse; /* 아이콘과 말풍선 순서를 뒤집어 오른쪽 배치 */
+      align-items: flex-start;
+    }
+
+    /* ===== 아바타 아이콘 ===== */
+    .avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0; /* 아이콘 크기 고정 */
+    }
+
+    .avatar.ai {
+      background-color: #e0e7ff;
+    }
+
+    .avatar.user {
+      background-color: #dbeafe;
+    }
+
+    /* ===== 말풍선 ===== */
+    /* Design Ref: §5.4 — AI: 왼쪽 정렬, 사용자: 오른쪽 정렬 */
+    .bubble {
+      max-width: 70%; /* 말풍선 최대 너비: 화면의 70% */
+      padding: 12px var(--spacing-md);
+      border-radius: var(--radius-bubble);
+      line-height: 1.6;
+      word-break: break-word; /* 긴 단어도 줄바꿈 */
+      white-space: pre-wrap;  /* 개행 문자 유지 */
+    }
+
+    /* AI 말풍선: 왼쪽 상단 모서리만 뾰족하게 */
+    .bubble.ai {
+      background-color: var(--color-bubble-ai-bg);
+      color: var(--color-bubble-ai-text);
+      border-top-left-radius: 4px;
+    }
+
+    /* 사용자 말풍선: 오른쪽 상단 모서리만 뾰족하게 */
+    .bubble.user {
+      background-color: var(--color-bubble-user-bg);
+      color: var(--color-bubble-user-text);
+      border-top-right-radius: 4px;
+    }
+
+    /* 에러 말풍선 */
+    .bubble.error {
+      background-color: var(--color-bubble-error-bg);
+      color: var(--color-bubble-error-text);
+      border-top-left-radius: 4px;
+    }
+
+    /* ===== 로딩 인디케이터 (점 3개 애니메이션) ===== */
+    /* Design Ref: §5.5 */
+    .loading-dots {
+      display: flex;
+      gap: 5px;
+      padding: 14px var(--spacing-md);
+      background-color: var(--color-bubble-ai-bg);
+      border-radius: var(--radius-bubble);
+      border-top-left-radius: 4px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      background-color: #9ca3af;
+      border-radius: 50%;
+      /* 순차적으로 위아래로 움직이는 애니메이션 */
+      animation: bounce 1.2s infinite;
+    }
+
+    /* 두 번째, 세 번째 점은 시작 시간을 늦춰서 파도 효과 생성 */
+    .dot:nth-child(2) { animation-delay: 0.2s; }
+    .dot:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes bounce {
+      0%, 80%, 100% { transform: translateY(0); opacity: 0.5; }
+      40%           { transform: translateY(-6px); opacity: 1; }
+    }
+
+    /* ===== 입력 영역 ===== */
+    /* Design Ref: §5.3 — 하단 고정, 흰색, 상단 구분선 */
+    .input-area {
+      padding: var(--spacing-md) var(--spacing-lg);
+      background-color: var(--color-input-bg);
+      border-top: 1px solid var(--color-header-border);
+      flex-shrink: 0; /* 입력 영역 높이 고정 */
+    }
+
+    .input-wrapper {
+      display: flex;
+      align-items: flex-end;
+      gap: var(--spacing-sm);
+      max-width: 800px;
+      margin: 0 auto; /* 넓은 화면에서 중앙 정렬 */
+    }
+
+    /* 메시지 입력창 */
+    .message-input {
+      flex: 1;
+      padding: 12px var(--spacing-md);
+      border: 1.5px solid var(--color-input-border);
+      border-radius: var(--radius-input);
+      font-family: var(--font-family);
+      font-size: var(--font-size-base);
+      color: var(--color-text-primary);
+      background-color: var(--color-input-bg);
+      resize: none;      /* 사용자가 크기 조절 못하도록 고정 */
+      outline: none;
+      min-height: 48px;
+      max-height: 120px; /* 너무 길어지지 않도록 제한 */
+      line-height: 1.5;
+      transition: border-color 0.2s;
+    }
+
+    /* 포커스 시 파란 테두리 */
+    .message-input:focus {
+      border-color: var(--color-input-focus);
+    }
+
+    /* 비활성화 상태 (전송 중) */
+    .message-input:disabled {
+      background-color: #f9fafb;
+      cursor: not-allowed;
+    }
+
+    /* 전송 버튼: 파란 원형 버튼 */
+    .send-button {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%; /* 원형 */
+      border: none;
+      background-color: var(--color-primary);
+      color: #ffffff;
+      font-size: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background-color 0.2s, transform 0.1s;
+    }
+
+    .send-button:hover:not(:disabled) {
+      background-color: var(--color-primary-hover);
+    }
+
+    .send-button:active:not(:disabled) {
+      transform: scale(0.95); /* 클릭 시 살짝 축소 */
+    }
+
+    /* 비활성화 상태 (전송 중) */
+    .send-button:disabled {
+      background-color: #9ca3af;
+      cursor: not-allowed;
+    }
+
+    /* 입력창 아래 안내 텍스트 */
+    .input-hint {
+      text-align: center;
+      font-size: var(--font-size-small);
+      color: var(--color-text-secondary);
+      margin-top: var(--spacing-xs);
+    }
+
+    /* ===== 반응형: 모바일 (375px 이하) ===== */
+    @media (max-width: 480px) {
+      .header {
+        padding: 0 var(--spacing-md);
+      }
+
+      .chat-container {
+        padding: var(--spacing-md);
+      }
+
+      .input-area {
+        padding: var(--spacing-sm) var(--spacing-md);
+      }
+
+      .bubble {
+        max-width: 85%; /* 모바일에서는 더 넓게 */
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ③ HTML 구조 — 헤더, 채팅 영역, 입력 영역 -->
+
+  <!-- 헤더: 타이틀과 상태 배지 -->
+  <!-- Design Ref: §5.3 — 64px 고정 헤더 -->
+  <header class="header">
+    <div class="header-title">
+      <span class="icon">⚖️</span>
+      <span>노무 업무 어시스턴트</span>
+    </div>
+    <span class="header-badge">근로기준법 AI</span>
+  </header>
+
+  <!-- 채팅 메시지 목록: 말풍선이 이 안에 동적으로 추가됨 -->
+  <!-- Design Ref: §5.3 — flex-grow:1, overflow-y:auto -->
+  <div class="chat-container" id="chat-messages"></div>
+
+  <!-- 입력 영역: 메시지 입력창 + 전송 버튼 -->
+  <div class="input-area">
+    <div class="input-wrapper">
+      <!-- textarea: 엔터키로 전송, Shift+Enter로 줄바꿈 -->
+      <textarea
+        class="message-input"
+        id="message-input"
+        placeholder="근로기준법에 대해 궁금한 점을 물어보세요..."
+        rows="1"
+      ></textarea>
+      <!-- 전송 버튼 -->
+      <button class="send-button" id="send-button" title="전송 (Enter)">
+        &#9658; <!-- ▶ 화살표 유니코드 -->
+      </button>
+    </div>
+    <p class="input-hint">Enter: 전송 &nbsp;|&nbsp; Shift+Enter: 줄바꿈</p>
+  </div>
+
+  <!-- ④ JavaScript — 상태 변수, 함수, 이벤트 리스너 순 -->
+  <script>
+    // =====================================================
+    // 상태 변수
+    // =====================================================
+
+    // 대화 기록 배열: OpenAI messages 형식과 동일하게 유지
+    // { role: "user" | "assistant", content: "..." }
+    // 새로고침 시 초기화됨 (브라우저 메모리에만 존재)
+    let chatHistory = [];
+
+    // 현재 AI 응답 대기 중인지 여부 (중복 전송 방지)
+    let isLoading = false;
+
+    // DOM 요소 참조 (자주 사용하므로 미리 캐싱)
+    const chatMessages  = document.getElementById('chat-messages');
+    const messageInput  = document.getElementById('message-input');
+    const sendButton    = document.getElementById('send-button');
+
+    // =====================================================
+    // UI 함수
+    // =====================================================
+
+    /**
+     * 말풍선 요소를 생성하여 채팅창에 추가하는 함수
+     * @param {string} role    - 'user' | 'ai' | 'error'
+     * @param {string} content - 표시할 텍스트 내용
+     * @returns {HTMLElement}  - 생성된 말풍선 bubble 요소
+     */
+    function addMessage(role, content) {
+      // 메시지 행 컨테이너 생성
+      const row = document.createElement('div');
+      row.className = `message-row ${role === 'user' ? 'user' : 'ai'}`;
+
+      // 아바타 아이콘
+      const avatar = document.createElement('div');
+      avatar.className = `avatar ${role === 'user' ? 'user' : 'ai'}`;
+      // role에 따라 이모지 아이콘 설정
+      avatar.textContent = role === 'user' ? '👤' : '⚖️';
+
+      // 말풍선 본문
+      const bubble = document.createElement('div');
+      // error인 경우 에러 스타일 적용
+      bubble.className = `bubble ${role === 'error' ? 'error' : role === 'user' ? 'user' : 'ai'}`;
+      // ⚠️ 보안: innerHTML 금지 → textContent 사용 (XSS 방지)
+      bubble.textContent = content;
+
+      row.appendChild(avatar);
+      row.appendChild(bubble);
+      chatMessages.appendChild(row);
+
+      // 새 메시지가 보이도록 채팅창을 맨 아래로 스크롤
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+
+      return bubble;
+    }
+
+    /**
+     * 로딩 인디케이터 (점 3개 애니메이션)를 채팅창에 추가하는 함수
+     * @returns {HTMLElement} - 생성된 로딩 행 요소 (제거 시 사용)
+     */
+    function addLoadingIndicator() {
+      const row = document.createElement('div');
+      row.className = 'message-row ai';
+      row.id = 'loading-row'; // 나중에 제거하기 위해 id 부여
+
+      const avatar = document.createElement('div');
+      avatar.className = 'avatar ai';
+      avatar.textContent = '⚖️';
+
+      // 점 3개 컨테이너
+      const dots = document.createElement('div');
+      dots.className = 'loading-dots';
+      // 점 3개를 생성하여 추가
+      for (let i = 0; i < 3; i++) {
+        const dot = document.createElement('div');
+        dot.className = 'dot';
+        dots.appendChild(dot);
+      }
+
+      row.appendChild(avatar);
+      row.appendChild(dots);
+      chatMessages.appendChild(row);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+
+      return row;
+    }
+
+    /**
+     * 로딩 인디케이터를 채팅창에서 제거하는 함수
+     */
+    function removeLoadingIndicator() {
+      const loadingRow = document.getElementById('loading-row');
+      if (loadingRow) {
+        loadingRow.remove();
+      }
+    }
+
+    /**
+     * 입력창과 전송 버튼을 활성화/비활성화하는 함수
+     * @param {boolean} disabled - true면 비활성화, false면 활성화
+     */
+    function setInputDisabled(disabled) {
+      messageInput.disabled = disabled;
+      sendButton.disabled   = disabled;
+    }
+
+    // =====================================================
+    // 메시지 전송 함수
+    // =====================================================
+
+    /**
+     * 사용자 메시지를 서버로 전송하고 AI 답변을 받아 화면에 표시하는 함수
+     * Plan SC: PDF 기반 답변 + 대화 기록 유지
+     */
+    async function sendMessage() {
+      // 입력창의 텍스트를 앞뒤 공백 제거 후 가져옴
+      const userMessage = messageInput.value.trim();
+
+      // 빈 메시지이거나 로딩 중이면 아무것도 하지 않음
+      if (!userMessage || isLoading) return;
+
+      // 로딩 상태 진입: UI 비활성화
+      isLoading = true;
+      setInputDisabled(true);
+
+      // 입력창 초기화 및 높이 복원
+      messageInput.value = '';
+      messageInput.style.height = 'auto';
+
+      // 1. 사용자 말풍선을 화면에 추가
+      addMessage('user', userMessage);
+
+      // 2. 대화 기록에 사용자 메시지 추가
+      chatHistory.push({ role: 'user', content: userMessage });
+
+      // 3. 로딩 인디케이터 표시
+      addLoadingIndicator();
+
+      try {
+        // 4. 서버의 /api/chat 엔드포인트로 POST 요청
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: userMessage,
+            history: chatHistory.slice(0, -1), // 현재 메시지는 서버에서 별도 처리하므로 제외
+          }),
+        });
+
+        // 5. 응답 JSON 파싱
+        const data = await response.json();
+
+        // 6. 로딩 인디케이터 제거
+        removeLoadingIndicator();
+
+        if (data.error) {
+          // 서버에서 에러 반환 시 에러 말풍선 표시
+          addMessage('error', '⚠️ ' + data.error);
+          // 에러 발생 시 대화 기록에서 마지막 사용자 메시지 제거
+          chatHistory.pop();
+        } else {
+          // 7. AI 답변을 화면에 말풍선으로 표시
+          addMessage('ai', data.reply);
+          // 8. 대화 기록에 AI 답변 추가 (다음 요청 시 맥락으로 활용)
+          chatHistory.push({ role: 'assistant', content: data.reply });
+        }
+
+      } catch (err) {
+        // 네트워크 오류 등 fetch 자체가 실패했을 때
+        removeLoadingIndicator();
+        addMessage('error', '⚠️ 서버와 연결할 수 없습니다. 서버가 실행 중인지 확인해 주세요.');
+        // 실패한 사용자 메시지를 대화 기록에서 제거
+        chatHistory.pop();
+        console.error('fetch 오류:', err);
+      }
+
+      // 로딩 상태 해제: UI 활성화 및 입력창 포커스
+      isLoading = false;
+      setInputDisabled(false);
+      messageInput.focus();
+    }
+
+    // =====================================================
+    // 이벤트 리스너
+    // =====================================================
+
+    // 전송 버튼 클릭 시 메시지 전송
+    sendButton.addEventListener('click', sendMessage);
+
+    // 입력창 키보드 이벤트 처리
+    messageInput.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        // Enter 단독: 메시지 전송 (기본 줄바꿈 동작 방지)
+        event.preventDefault();
+        sendMessage();
+      }
+      // Shift+Enter: 기본 동작(줄바꿈) 허용 — 아무것도 하지 않음
+    });
+
+    // 입력창 내용에 따라 높이 자동 조절 (최대 120px)
+    messageInput.addEventListener('input', function () {
+      this.style.height = 'auto';
+      this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    });
+
+    // =====================================================
+    // 초기화: 페이지 로드 시 환영 메시지 표시
+    // Design Ref: §5.6 — 초기 환영 메시지
+    // =====================================================
+    addMessage('ai',
+      '안녕하세요! 노무 업무 어시스턴트입니다. ⚖️\n' +
+      '근로기준법 관련 궁금한 점을 질문해 주세요.\n\n' +
+      '예시 질문:\n' +
+      '• 연차 유급휴가는 며칠인가요?\n' +
+      '• 퇴직금 계산 방법이 궁금해요.\n' +
+      '• 해고 예고 기간은 얼마나 되나요?\n' +
+      '• 최저임금은 얼마인가요?'
+    );
+
+    // 페이지 로드 후 입력창에 자동 포커스
+    messageInput.focus();
+  </script>
+</body>
+</html>
